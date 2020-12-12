@@ -6,17 +6,26 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 
 	"github.com/jaehue/gochat"
+	"github.com/labstack/echo"
 )
 
 var (
-	clients  []net.Conn
-	messages = make(chan []byte)
+	clients   []net.Conn
+	messages  = make(chan []byte)
+	histories []gochat.Message
 )
 
 func main() {
+	e := echo.New()
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, histories)
+	})
+	go e.Start(":8001")
+
 	l, err := net.Listen("tcp", ":8000")
 	if err != nil {
 		fmt.Println("Fail to listening:", err.Error())
@@ -65,6 +74,7 @@ func handleConnection(conn net.Conn) {
 		log.Println("Fail to unmarshal message.", err)
 	} else {
 		log.Printf("[%s] %s", m.Sender, m.Text)
+		histories = append(histories, m)
 		messages <- buffer
 	}
 

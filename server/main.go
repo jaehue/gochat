@@ -8,6 +8,11 @@ import (
 	"os"
 )
 
+var (
+	clients  []net.Conn
+	messages = make(chan []byte)
+)
+
 func main() {
 	l, err := net.Listen("tcp", ":8000")
 	if err != nil {
@@ -18,6 +23,8 @@ func main() {
 
 	fmt.Println("Start to listening.")
 
+	go runWriteLoop(messages)
+
 	for {
 		c, err := l.Accept()
 		if err != nil {
@@ -27,7 +34,18 @@ func main() {
 
 		fmt.Println("Client " + c.RemoteAddr().String() + " connected.")
 
+		clients = append(clients, c)
 		go handleConnection(c)
+	}
+}
+
+func runWriteLoop(in <-chan []byte) {
+	for message := range in {
+		for _, c := range clients {
+			if _, err := c.Write(message); err != nil {
+				log.Println("Fail to write message.", err)
+			}
+		}
 	}
 }
 
@@ -41,9 +59,7 @@ func handleConnection(conn net.Conn) {
 
 	log.Println("Client message:", string(buffer[:len(buffer)-1]))
 
-	if _, err := conn.Write(buffer); err != nil {
-		log.Println("Fail to write messafe.", err)
-	}
+	messages <- buffer
 
 	handleConnection(conn)
 }

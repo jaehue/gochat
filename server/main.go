@@ -2,10 +2,13 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
+
+	"github.com/jaehue/gochat"
 )
 
 var (
@@ -57,9 +60,13 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	log.Println("Client message:", string(buffer[:len(buffer)-1]))
-
-	messages <- buffer
+	var m gochat.Message
+	if err := json.Unmarshal(buffer, &m); err != nil {
+		log.Println("Fail to unmarshal message.", err)
+	} else {
+		log.Printf("[%s] %s", m.Sender, m.Text)
+		messages <- buffer
+	}
 
 	handleConnection(conn)
 }

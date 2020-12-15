@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -14,15 +12,18 @@ import (
 )
 
 var (
-	clients   []net.Conn
+	channels  []*Channel
 	messages  = make(chan []byte)
 	histories []gochat.Message
 )
 
 func main() {
 	e := echo.New()
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/histories", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, histories)
+	})
+	e.GET("/connections", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, channels)
 	})
 	go e.Start(":8001")
 
@@ -46,37 +47,16 @@ func main() {
 
 		fmt.Println("Client " + c.RemoteAddr().String() + " connected.")
 
-		clients = append(clients, c)
-		go handleConnection(c)
+		channels = append(channels, createChannel(c))
 	}
 }
 
 func runWriteLoop(in <-chan []byte) {
 	for message := range in {
-		for _, c := range clients {
-			if _, err := c.Write(message); err != nil {
+		for _, c := range channels {
+			if _, err := c.Conn.Write(message); err != nil {
 				log.Println("Fail to write message.", err)
 			}
 		}
 	}
-}
-
-func handleConnection(conn net.Conn) {
-	buffer, err := bufio.NewReader(conn).ReadBytes('\n')
-	if err != nil {
-		fmt.Println("Client left.")
-		conn.Close()
-		return
-	}
-
-	var m gochat.Message
-	if err := json.Unmarshal(buffer, &m); err != nil {
-		log.Println("Fail to unmarshal message.", err)
-	} else {
-		log.Printf("[%s] %s", m.Sender, m.Text)
-		histories = append(histories, m)
-		messages <- buffer
-	}
-
-	handleConnection(conn)
 }
